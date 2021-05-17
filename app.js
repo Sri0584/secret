@@ -4,10 +4,12 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require('mongoose');
-const encrypt = require("mongoose-encryption");
+// const encrypt = require("mongoose-encryption");
+// const md5 = require("md5");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 const app = express();
-
 
 app.set('view engine', 'ejs');
 
@@ -21,7 +23,7 @@ const userSchema = new mongoose.Schema({
     password: String
 }) ;
 //secret declared in env file.
-userSchema.plugin(encrypt,{ secret:process.env.SECRET, encryptedFields: ["password"] });
+// userSchema.plugin(encrypt,{ secret:process.env.SECRET, encryptedFields: ["password"] });
 
 const secretsSchema = {
     content: String
@@ -57,18 +59,23 @@ app.get("/secrets", (req,res) => {
  
 });
 app.post("/register", (req,res)=> {
-    const newUser = new User({
-        email: req.body.username,
-        password: req.body.password
+    
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash) {
+        // Store hash in your password DB.
+        const newUser = new User({
+            email: req.body.username,
+            // password: md5(req.body.password)
+            password: hash
+        });
+        newUser.save(function(err){
+            if (!err){
+              res.render("secrets");
+            }else{
+                console.log(err);
+            }
+          });
     });
-
-    newUser.save(function(err){
-        if (!err){
-          res.render("secrets");
-        }else{
-            console.log(err);
-        }
-      });
+   
 });
 
 app.post("/submit", (req,res) => {
@@ -89,9 +96,13 @@ app.post("/login", (req,res)=> {
     User.findOne({email: req.body.username}, function(err, foundUser){
         if(!err){
             if(foundUser){
-                if(foundUser.password === req.body.password){
-                    res.render("secrets");
-                }
+                // if(foundUser.password === md5(req.body.password)){
+                    bcrypt.compare(req.body.password,foundUser.password,  function(err, result) {
+                        // result == true
+                        res.render("secrets");
+                    });
+                   
+                
             }
         }
         else{
